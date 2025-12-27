@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Scavenger Quest</title>
+    
+    <!-- Import Map for Three.js from CDN -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+            background: #0a0e27;
+            color: white;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* HUD */
+        #hud {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .hud-panel {
+            pointer-events: auto;
+            background: rgba(10, 14, 39, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+        }
+
+        #level-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+
+        .level-name {
+            font-family: 'Orbitron', monospace;
+            font-size: 24px;
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .item-count {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .stat {
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0099ff;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 14px;
+        }
+
+        .key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 0 2px;
+            font-family: 'Orbitron', monospace;
+        }
+
+        #progress {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #0099ff);
+            transition: width 0.3s;
+        }
+
+        /* Menu */
+        #menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 14, 39, 0.95);
+            z-index: 1000;
+        }
+
+        .menu-content {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 20px;
+            border: 2px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .game-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 64px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #00ff88, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 40px;
+        }
+
+        .menu-button {
+            display: block;
+            width: 300px;
+            padding: 15px;
+            margin: 15px auto;
+            font-family: 'Orbitron', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, #00ff88, #0099ff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .menu-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+
+        /* Completion */
+        #completion {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+        }
+
+        .completion-content {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            padding: 60px;
+            border-radius: 20px;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+        }
+
+        .completion-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 56px;
+            color: #00ff88;
+            margin-bottom: 30px;
+        }
+
+        .completion-stats {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+
+        .completion-stat {
+            text-align: center;
+        }
+
+        .completion-stat-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .completion-stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #0099ff;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @keyframes progressShine {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+        <div id="level-info" class="hud-panel">
+            <div class="level-name" id="level-name">Level 1 - Forest</div>
+            <div class="item-count">
+                <span id="items-collected">0</span>/<span id="total-items">5</span>
+            </div>
+        </div>
+
+        <div id="stats" class="hud-panel">
+            <div class="stat">
+                <div class="stat-label">TIME</div>
+                <div class="stat-value" id="timer">00:00</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">SCORE</div>
+                <div class="stat-value" id="score">0</div>
+            </div>
+        </div>
+
+        <div id="controls" class="hud-panel">
+            <span class="key">W</span>
+            <span class="key">A</span>
+            <span class="key">S</span>
+            <span class="key">D</span> Move |
+            <span class="key">MOUSE</span> Look |
+            <span class="key">C</span> Camera |
+            <span class="key">ESC</span> Menu
+        </div>
+
+        <div id="progress" class="hud-panel">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="menu">
+        <div class="menu-content">
+            <h1 class="game-title">SCAVENGER<br>QUEST</h1>
+            <button class="menu-button" id="btn-start">START GAME</button>
+            <button class="menu-button" id="btn-continue">CONTINUE</button>
+            <button class="menu-button" id="btn-credits">CREDITS</button>
+        </div>
+    </div>
+
+    <!-- Completion Screen -->
+    <div id="completion">
+        <div class="completion-content">
+            <div class="completion-title">🎉 LEVEL COMPLETE!</div>
+            <div class="completion-stats">
+                <div class="completion-stat">
+                    <div class="completion-stat-label">TIME</div>
+                    <div class="completion-stat-value" id="comp-time">00:00</div>
+                </div>
+                <div class="completion-stat">
+                    <div class="completion-stat-label">ITEMS</div>
+                    <div class="completion-stat-value" id="comp-items">0/0</div>
+                </div>
+                <div class="completion-stat">
+                    <div class="completion-stat-label">SCORE</div>
+                    <div class="completion-stat-value" id="comp-score">0</div>
+                </div>
+            </div>
+            <button class="menu-button" id="btn-next">NEXT LEVEL</button>
+            <button class="menu-button" id="btn-menu">MAIN MENU</button>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
