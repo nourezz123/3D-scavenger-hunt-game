@@ -1,8 +1,8 @@
 import { Player } from './Player.js';
 import { Level1_Forest } from '../levels/Level1_Forest.js';
 import { Level2_Village } from '../levels/Level2_Village.js';
-import { Level3_Ruins } from '../levels/Level3_Ruins.js';
-import { Level4_Cave } from '../levels/Level4_Cave.js';
+import { Level3_Desert } from '../levels/Level3_Desert.js';
+import { Level4_Mountain } from '../levels/Level4_Mountain.js';
 
 export class GameManager {
     constructor(scene, camera, ui, audioManager) {
@@ -17,6 +17,7 @@ export class GameManager {
         this.currentLevelNumber = 1;
         this.score = 0;
         this.gameTime = 0;
+        this.timeRemaining = 0;
         this.timerInterval = null;
         this.isGameActive = false;
         this.isPaused = false;
@@ -24,11 +25,10 @@ export class GameManager {
         this.levels = [
             Level1_Forest,
             Level2_Village,
-            Level3_Ruins,
-            Level4_Cave
+            Level3_Desert,
+            Level4_Mountain
         ];
         
-        // In-memory save state
         this.saveState = {
             currentLevel: 1,
             totalScore: 0
@@ -53,18 +53,20 @@ export class GameManager {
     }
     
     loadLevel(levelNumber) {
-        // Clear current level
         if (this.currentLevel) {
             this.currentLevel.dispose();
         }
         
-        // Create new level
         const LevelClass = this.levels[levelNumber - 1];
         this.currentLevel = new LevelClass(this.scene, this);
         this.currentLevel.load();
         
+        // Pass collision objects to player
+        this.player.setCollisionObjects(this.currentLevel.environmentObjects);
+        
         this.currentLevelNumber = levelNumber;
         this.gameTime = 0;
+        this.timeRemaining = this.currentLevel.timeLimit || 120;
         this.isPaused = false;
         this.player.reset();
         this.player.setActive(true);
@@ -78,16 +80,37 @@ export class GameManager {
         this.ui.updateItems(0, this.currentLevel.totalItems);
         
         this.startTimer();
+        
+        console.log(`✅ Level ${levelNumber} loaded - Time Limit: ${this.currentLevel.timeLimit || 120}s`);
     }
     
     startTimer() {
         if (this.timerInterval) clearInterval(this.timerInterval);
         
         this.gameTime = 0;
+        this.timeRemaining = this.currentLevel.timeLimit || 120;
+        
         this.timerInterval = setInterval(() => {
-            if (!this.isPaused) {
+            if (!this.isPaused && this.isGameActive) {
                 this.gameTime++;
-                this.ui.updateTimer(this.gameTime);
+                this.timeRemaining--;
+                
+                this.ui.updateTimer(this.timeRemaining);
+                
+                // Time's up - Game Over
+                if (this.timeRemaining <= 0) {
+                    this.gameOver('Time\'s Up!');
+                }
+                
+                // Warning at 30 seconds
+                if (this.timeRemaining === 30) {
+                    this.ui.showNotification('⏰ 30 seconds remaining!', 'warning');
+                }
+                
+                // Warning at 10 seconds
+                if (this.timeRemaining === 10) {
+                    this.ui.showNotification('⏰ 10 seconds left!', 'error');
+                }
             }
         }, 1000);
     }
@@ -116,16 +139,21 @@ export class GameManager {
     
     onItemCollected() {
         const points = 100 * this.currentLevelNumber;
-        this.score += points;
+        const timeBonus = Math.floor(this.timeRemaining / 10) * 10; // Bonus for remaining time
+        
+        this.score += points + timeBonus;
         this.ui.updateScore(this.score);
         this.ui.updateItems(
             this.currentLevel.itemsCollected,
             this.currentLevel.totalItems
         );
         
-        // Play collect sound
         if (this.audioManager) {
             this.audioManager.playCollect();
+        }
+        
+        if (timeBonus > 0) {
+            this.ui.showNotification(`+${points + timeBonus} (${timeBonus} time bonus!)`, 'success');
         }
         
         const progress = (this.currentLevel.itemsCollected / this.currentLevel.totalItems) * 100;
@@ -141,21 +169,39 @@ export class GameManager {
         this.player.setActive(false);
         this.stopTimer();
         
-        // Play completion sound
         if (this.audioManager) {
             this.audioManager.playComplete();
         }
+        
+        // Bonus points for completing level
+        const completionBonus = this.timeRemaining * 10;
+        this.score += completionBonus;
         
         this.saveState.currentLevel = this.currentLevelNumber + 1;
         this.saveState.totalScore = this.score;
         
         this.ui.showCompletion(
-            this.gameTime,
+            this.currentLevel.timeLimit - this.timeRemaining,
             this.currentLevel.itemsCollected,
             this.currentLevel.totalItems,
             this.score,
             this.currentLevelNumber >= 4
         );
+    }
+    
+    gameOver(reason) {
+        this.isGameActive = false;
+        this.player.setActive(false);
+        this.stopTimer();
+        
+        console.log(`Game Over: ${reason}`);
+        
+        // Show game over screen
+        this.ui.showNotification(`💀 GAME OVER: ${reason}`, 'error');
+        
+        setTimeout(() => {
+            this.returnToMenu();
+        }, 2000);
     }
     
     nextLevel() {
@@ -188,5 +234,11 @@ export class GameManager {
         
         // Check collectible collisions
         this.currentLevel.checkCollisions(this.player.getPosition());
+        
+        // Check boundary violations
+        if (this.currentLevel.checkBoundaryViolation && 
+            this.currentLevel.checkBoundaryViolation(this.player.getPosition())) {
+            this.gameOver('Fell off the edge!');
+        }
     }
 }

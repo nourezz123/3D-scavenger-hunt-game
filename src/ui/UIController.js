@@ -39,8 +39,12 @@ export class UIController {
         this.debugPanel = null;
         this.showDebug = false;
         
+        // Controls display
+        this.controlsDisplay = null;
+        
         this.setupDebugPanel();
         this.setupMenuAnimations();
+        this.createControlsDisplay();
     }
     
     // Initialize with game references (called after game starts)
@@ -54,6 +58,53 @@ export class UIController {
         }
         
         console.log('UI Controller initialized');
+    }
+    
+    createControlsDisplay() {
+        // Create controls display container
+        this.controlsDisplay = document.createElement('div');
+        this.controlsDisplay.id = 'controls-display';
+        this.controlsDisplay.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            text-align: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            display: none;
+        `;
+        
+        this.controlsDisplay.innerHTML = `
+            <div style="margin-bottom: 5px;">
+                <span style="color: #00ff88; font-weight: bold;">W</span> | 
+                <span style="color: #00ff88; font-weight: bold;">A</span> | 
+                <span style="color: #00ff88; font-weight: bold;">S</span> | 
+                <span style="color: #00ff88; font-weight: bold;">D</span> : Move
+            </div>
+            <div style="margin-bottom: 5px;">
+                <span style="color: #00ff88; font-weight: bold;">Mouse</span> : Look | 
+                <span style="color: #00ff88; font-weight: bold;">Space</span> : Jump
+            </div>
+            <div style="margin-bottom: 5px;">
+                <span style="color: #00ff88; font-weight: bold;">Shift</span> : Sprint | 
+                <span style="color: #00ff88; font-weight: bold;">ESC</span> : Pause/Menu
+            </div>
+            <div>
+                <span style="color: #00ff88; font-weight: bold;">F</span> : Wireframe | 
+                <span style="color: #00ff88; font-weight: bold;">M</span> : Mute | 
+                <span style="color: #00ff88; font-weight: bold;">H</span> : Debug
+            </div>
+        `;
+        
+        document.body.appendChild(this.controlsDisplay);
     }
     
     setupMenuAnimations() {
@@ -119,7 +170,8 @@ export class UIController {
         if (!this.showDebug || !this.debugPanel) return;
         
         // Update FPS (approximate)
-        this.debugStats.fps = Math.round(performance.now() / 1000);
+        this.debugStats.fps = Math.round(1000 / (performance.now() - (this.lastFrameTime || performance.now())));
+        this.lastFrameTime = performance.now();
         
         // Get renderer info
         const info = renderer.info;
@@ -149,6 +201,16 @@ export class UIController {
             this.miniMap.container.style.display = 'block';
         }
         
+        // Show controls display
+        if (this.controlsDisplay) {
+            this.controlsDisplay.style.display = 'block';
+            this.controlsDisplay.style.opacity = '0';
+            this.controlsDisplay.style.transition = 'opacity 0.5s ease';
+            setTimeout(() => {
+                this.controlsDisplay.style.opacity = '1';
+            }, 10);
+        }
+        
         // Add fade-in animation
         this.hud.style.opacity = '0';
         this.hud.style.transition = 'opacity 0.5s ease';
@@ -161,6 +223,11 @@ export class UIController {
         this.hud.classList.add('hidden');
         if (this.miniMap) {
             this.miniMap.container.style.display = 'none';
+        }
+        
+        // Hide controls display
+        if (this.controlsDisplay) {
+            this.controlsDisplay.style.display = 'none';
         }
     }
     
@@ -303,15 +370,16 @@ export class UIController {
         const secs = (seconds % 60).toString().padStart(2, '0');
         this.timer.textContent = `${minutes}:${secs}`;
         
-        // Flash red when time is running low
-        if (seconds > 0 && seconds % 60 === 0) {
+        // Color coding for time
+        if (seconds <= 10) {
             this.timer.style.color = '#ff4444';
-            this.timer.style.animation = 'pulse 1s infinite';
-            
-            setTimeout(() => {
-                this.timer.style.color = '#0099ff';
-                this.timer.style.animation = '';
-            }, 1000);
+            this.timer.style.animation = 'pulse 0.5s infinite';
+        } else if (seconds <= 30) {
+            this.timer.style.color = '#ffaa00';
+            this.timer.style.animation = '';
+        } else {
+            this.timer.style.color = '#0099ff';
+            this.timer.style.animation = '';
         }
     }
     
@@ -334,28 +402,22 @@ export class UIController {
     }
     
     updateProgress(percentage) {
-        this.progressFill.style.width = `${percentage}%`;
+        this.progressFill.style.width = `${Math.min(100, percentage)}%`;
         
-        // Add gradient animation
-        this.progressFill.style.background = `linear-gradient(
-            90deg, 
-            #00ff88, 
-            #0099ff, 
-            #00ff88
-        )`;
-        this.progressFill.style.backgroundSize = '200% 100%';
-        this.progressFill.style.animation = 'progressShine 2s linear infinite';
+        // Color coding for progress
+        if (percentage >= 100) {
+            this.progressFill.style.background = 'linear-gradient(90deg, #00ff88, #00cc66)';
+        } else if (percentage >= 50) {
+            this.progressFill.style.background = 'linear-gradient(90deg, #0099ff, #00ff88)';
+        } else {
+            this.progressFill.style.background = 'linear-gradient(90deg, #0099ff, #0066cc)';
+        }
     }
     
     update() {
         // Update mini-map
         if (this.miniMap && this.gameManager && this.gameManager.isGameActive) {
             this.miniMap.update();
-        }
-        
-        // Update debug stats
-        if (this.showDebug && this.gameManager && this.gameManager.renderer) {
-            this.updateDebugStats(this.gameManager.renderer, this.player);
         }
     }
     
@@ -413,6 +475,10 @@ export class UIController {
         
         if (this.debugPanel && this.debugPanel.parentNode) {
             this.debugPanel.parentNode.removeChild(this.debugPanel);
+        }
+        
+        if (this.controlsDisplay && this.controlsDisplay.parentNode) {
+            this.controlsDisplay.parentNode.removeChild(this.controlsDisplay);
         }
     }
 }

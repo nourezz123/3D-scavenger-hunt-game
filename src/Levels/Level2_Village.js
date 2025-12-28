@@ -8,29 +8,70 @@ export class Level2_Village {
         this.name = "Level 2 - Village";
         this.totalItems = 8;
         this.itemsCollected = 0;
+        this.timeLimit = 70; // 45 seconds
+        this.difficulty = 2;
         
         this.collectibles = [];
         this.environmentObjects = [];
         this.lights = [];
+        this.boundarySize = 55;
     }
     
     load() {
         this.setupEnvironment();
         this.setupLighting();
         this.createCollectibles();
+        this.createBoundaries();
+    }
+    
+    createBoundaries() {
+        // Visible white warning boundaries
+        const boundarySize = this.boundarySize;
+        const wallHeight = 20;
+        
+        const warningMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFFFFF,
+            transparent: true,
+            opacity: 0.7,
+            emissive: 0xFFFFFF,
+            emissiveIntensity: 0.5,
+            side: THREE.DoubleSide
+        });
+        
+        const walls = [
+            { pos: [0, wallHeight/2, -boundarySize], size: [boundarySize*2, wallHeight, 0.5] },
+            { pos: [0, wallHeight/2, boundarySize], size: [boundarySize*2, wallHeight, 0.5] },
+            { pos: [boundarySize, wallHeight/2, 0], size: [0.5, wallHeight, boundarySize*2] },
+            { pos: [-boundarySize, wallHeight/2, 0], size: [0.5, wallHeight, boundarySize*2] }
+        ];
+        
+        walls.forEach(wall => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(...wall.size),
+                warningMaterial
+            );
+            mesh.position.set(...wall.pos);
+            this.scene.add(mesh);
+            this.environmentObjects.push(mesh);
+        });
+    }
+    
+    checkBoundaryViolation(playerPosition) {
+        return Math.abs(playerPosition.x) > this.boundarySize || 
+               Math.abs(playerPosition.z) > this.boundarySize;
     }
     
     setupEnvironment() {
         // Sky
         this.scene.background = new THREE.Color(0xB0C4DE);
-        this.scene.fog = new THREE.Fog(0xB0C4DE, 10, 100);
+        this.scene.fog = new THREE.Fog(0xB0C4DE, 30, 120);
         
         // Ground
         const groundGeometry = new THREE.PlaneGeometry(120, 120, 20, 20);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8B7355,
-            roughness: 0.8,
-            metalness: 0.2
+            color: 0x9b7653,
+            roughness: 0.85,
+            metalness: 0.1
         });
         
         const vertices = groundGeometry.attributes.position.array;
@@ -70,8 +111,8 @@ export class Level2_Village {
         
         const geometry = new THREE.BoxGeometry(width, height, depth);
         const material = new THREE.MeshStandardMaterial({
-            color: 0x8B7355,
-            roughness: 0.8
+            color: 0xa67c52,
+            roughness: 0.85
         });
         
         const building = new THREE.Mesh(geometry, material);
@@ -84,7 +125,7 @@ export class Level2_Village {
         // Roof
         const roofGeometry = new THREE.ConeGeometry(width * 0.7, 2, 4);
         const roofMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8B4513,
+            color: 0x6b4423,
             roughness: 0.9
         });
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
@@ -98,8 +139,8 @@ export class Level2_Village {
     createWell(x, z) {
         const geometry = new THREE.CylinderGeometry(0.8, 0.8, 1.5, 8);
         const material = new THREE.MeshStandardMaterial({
-            color: 0x696969,
-            roughness: 0.7
+            color: 0x505050,
+            roughness: 0.8
         });
         
         const well = new THREE.Mesh(geometry, material);
@@ -111,11 +152,11 @@ export class Level2_Village {
     }
     
     setupLighting() {
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
         this.lights.push(ambientLight);
         
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(20, 30, 20);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
@@ -129,22 +170,13 @@ export class Level2_Village {
         this.scene.add(dirLight);
         this.lights.push(dirLight);
         
-        for (let i = 0; i < 8; i++) {
-            const pointLight = new THREE.PointLight(0xFFA500, 1.5, 20);
-            const angle = (i / 8) * Math.PI * 2;
-            pointLight.position.set(
-                Math.cos(angle) * 25,
-                3,
-                Math.sin(angle) * 25
-            );
-            pointLight.castShadow = true;
-            this.scene.add(pointLight);
-            this.lights.push(pointLight);
-        }
+        const hemiLight = new THREE.HemisphereLight(0xB0C4DE, 0x9b7653, 0.6);
+        this.scene.add(hemiLight);
+        this.lights.push(hemiLight);
     }
     
     createCollectibles() {
-        const spreadRadius = 40;
+        const spreadRadius = 45;
         
         for (let i = 0; i < this.totalItems; i++) {
             const angle = (i / this.totalItems) * Math.PI * 2;
@@ -155,7 +187,7 @@ export class Level2_Village {
                 Math.sin(angle) * radius
             );
             
-            const collectible = new Collectible(position, 1);
+            const collectible = new Collectible(position, 1.5);
             this.scene.add(collectible.mesh);
             this.collectibles.push(collectible);
         }
